@@ -1,0 +1,154 @@
+Cluster created with ms windows server 2012 r2 base
+
+connect to ms windows server 2012 r2 base with DNS and later with uname, pwd using remmina.
+
+> server manager >local server(left) > Dashboard > click add roles and feature > next > next > next (server roles)
+> chk DNS server > add features > continue > next > next > next(confirmation) > install > close
+
+> local server(left) > computer name(click) > change > edit_"hadoop_ad" > ok > restart(auto)
+
+> local server > task (drop down) > shutdown > restart > operating system recovery planed (choose) > ok
+
+> Dashboard > add roles and features > next > next > next (server roles) > chk active directory domain services >
+add features > next > next(ADDS) > next > install > close > flag (right) > add roles and features on popup >
+"promot this server to domain controller"
+
+> select add a new forest (radio) > root domain name: "hadoopsecurity.local" > next > pwd > confirm pwd > next >
+next > next > next (review options) > next (prerequisite) > install > close > "auto shutdown"
+
+"restarted"
+
+> server manager > Dashboard > add roles and features > next > next > next(server roles) > next > chk ADCS >
+add features > next > next(ADCS) > next (roles services) > next (confirmation) > next > install > close
+
+> flag (right) > add roles and features > configure ADCS > next (roles services) > next > next > next (private key) >
+next > next > next > next > configure > close
+
+local server(left) > tasks(right) > active directory users and computers > select hadoop security.local(left) >
+right click on hadoopsecurity.local > new > organisational unit > in new popup of new object -org unit "name : hadoop"
+chk protect container from > ok
+
+right click on "hadoop" > new > user > "first name: cloudera, last name: manager, user logon name: cm" > next
+> pwd:" ", confirm " " > next > finish
+
+select cloudera manager > above that click "create a new user in the current container"
+"user","one","user1" >next > pwd > confirm > finish
+
+right click hadoopsecurity.local > delegate control > next >add > "cm" > " chk names" > ok
+click add > "user1" > chek names > ok > next (delegate the following) > chk create,delete > chk modify membership >
+next > finish
+
+right click hadoopsecurity.local > delegate control > next > add > "user1" > "user1" > ok > next > chk create,delete >
+chk modify membership > next > finish
+
+--------------------------------------script---------------------------------------------
+
+search for public ip without AD ip and pest in "cluster" save exit
+
+@ hosts file contain @
+
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+10.0.0.210   hadoop-ad.hadoopsecurity.local
+
+change private ip of AD above i.e 10.0.0.210
+
+echo "public ip of cm"
+
+echo "public ip of cm" > cm
+
+ssh -i inspire.pem ec2-user@`cat cm`
+
+AD server in the hosts file on every node in the cluster. 
+sh putnmove.sh hosts /etc/hosts
+
+Install openldap-clients and krb5-workstation if it's not there.
+sh ./clustercmd.sh sudo yum install openldap-clients -y
+sh ./clustercmd.sh sudo yum install krb5-workstation -y
+
+krb.conf file for just info
+
+[libdefaults]
+ default_realm = HADOOPSECURITY.LOCAL
+ dns_lookup_realm = false
+ dns_lookup_kdc = false
+ ticket_lifetime = 24h
+ renew_lifetime = 7d
+ forwardable = true
+
+
+default_tgs_enctypes = aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 arcfour-hmac-md5
+default_tkt_enctypes = aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 arcfour-hmac-md5
+permitted_enctypes = aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 arcfour-hmac-md5
+
+[realms]
+ HADOOPSECURITY.LOCAL = {
+  kdc = hadoop-ad.hadoopsecurity.local
+  admin_server = hadoop-ad.hadoopsecurity.local
+ }
+
+Then copy krb5.conf to every node in the cluster
+sh ./putnmove.sh krb5.conf /etc/
+
+echo "ip of dn" > host
+
+ssh -i inspire.pem ec2-user@`cat host`
+
+Perform a kinit
+kinit user1
+pwd
+klist
+
+openssl s_client -connect hadoop-ad.hadoopsecurity.local:636
+
+on remmina
+> task > shutdown local server > restart (drop) > h/w installation (planned) > ok
+
+connect to remmina i.e AD server
+
+on cm > administration > security > enable kerberose for cluster1
+
+ssh -i inspire.pem ec2-user@`cat host`
+openssl s_client -connect hadoop-ad.hadoopsecurity.local:636
+
+check 4 check box on cm browser > continue
+
+KDC type > active directory(radio)
+
+on terminal
+cat /etc/krb5.conf
+
+copy HADOOPSECURITY.LOCAL & pest in kerbrise security realm
+
+copy hadoop-ad.hadoopsecurity.local & pest in KDC server host
+
+copy hadoop-ad.hadoopsecurity.local & pest in KDC admin server host
+
+copy & pest encryption types diagonally
+
+Active directory suffix
+ou=hadoop,DC=hadoopsecurity,DC=local
+
+continue-continue(4)(cm browser)
+
+enter "username:cm" & "pwd", continue - continue(6)
+
+> win server 2012 > tools > active directory users and computers
+
+on remmina
+> hadoopsecurity.local(left) > hadoop(folder) > refresh(user populated)
+
+on cm browser
+continue-finish
+
+go on hue > configuration > search "ldap"
+
+select desktop.auth.backend.ldapBackend in authentication backend
+
+ldaps://hadoop-ad.hadoopsecurity.local pest in Ldap url
+
+dc=hadoop-ad,dc=hadoopsecurity,dc=local pest in Ldap search base
+
+uname: cm, pwd in LDAP bind user & LDAP bind pwd
+
+search 'domain' in hue & pest "hadoopsecurity.local" in ACtive directory domain
